@@ -67,7 +67,8 @@ npm run dev
    - `VITE_GAS_WEBAPP_URL`：Apps Script Web App 網址
    - `VITE_API_KEY`：與 Script 屬性 `API_KEY` **完全相同**
    - （選用）`VITE_API_PROXY_URL`：若使用下方 CORS 代理，填 Worker 網址
-3. 若網址為 **Project Pages**（例如 `https://使用者.github.io/儲存庫名/`），到 **Variables** 新增 `VITE_BASE` = `/儲存庫名/`（前後斜線依實際路徑調整，須與 Vite `base` 一致）。
+3. **Project Pages**（`https://使用者.github.io/儲存庫名/`）：GitHub Actions 已依**儲存庫名稱**自動設定 `VITE_BASE`（例如 `/PrayCount-PWA/`），無需手動變數。若曾出現**整頁空白**、主控台 404（去 `github.io/assets/` 找 JS），代表過去建置少了正確 base，推送最新 workflow 後重新部署即可。  
+   - 若為 **User site**（`https://使用者.github.io/` 根目錄），請在 **Variables** 設定 `VITE_BASE` = `/`。
 
 推送至 `main` 或 `master` 會觸發 [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml) 建置並發佈。
 

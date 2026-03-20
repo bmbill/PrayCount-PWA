@@ -1,7 +1,8 @@
 # 將 PWA 建置後部署到 GitHub Pages。
 # 必要 Secrets：VITE_GAS_WEBAPP_URL、VITE_API_KEY
 # 選用：VITE_API_PROXY_URL（Cloudflare Worker 等）
-# 若為 Project Pages（網址 /repo/），請在 Repository variables 設定 VITE_BASE=/你的repo名/
+# Project Pages（user.github.io/RepoName/）會自動設 VITE_BASE=/RepoName/。
+# 若網址是 user.github.io（User site 根目錄），請在 Repository variables 設 VITE_BASE=/
 
 name: Deploy GitHub Pages
 
@@ -38,7 +39,8 @@ jobs:
           VITE_GAS_WEBAPP_URL: ${{ secrets.VITE_GAS_WEBAPP_URL }}
           VITE_API_KEY: ${{ secrets.VITE_API_KEY }}
           VITE_API_PROXY_URL: ${{ secrets.VITE_API_PROXY_URL }}
-          VITE_BASE: ${{ vars.VITE_BASE }}
+          # 與 https://<user>.github.io/<repo>/ 路徑一致；User site 根目錄請設 Repository variable VITE_BASE=/
+          VITE_BASE: ${{ vars.VITE_BASE || format('/{0}/', github.event.repository.name) }}
 
       - uses: actions/upload-pages-artifact@v3
         with:

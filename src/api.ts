@@ -1,4 +1,19 @@
 const LS_NAME = "mantra_count_participant_name";
+const LS_SHEET = "mantra_count_sheet_name";
+/** 各分頁上次選的使用者：{ [sheetName]: participantName } */
+const LS_PARTICIPANT_BY_SHEET = "mantra_count_participant_by_sheet";
+
+/**
+ * 介面偏好（上次選的專案／使用者）只存在瀏覽器，**不會**寫入 Google 試算表。
+ * 使用 sessionStorage：同一分頁開著時會記住；**關閉分頁後通常會清除**（與 localStorage 不同）。
+ */
+function prefStorage(): Storage {
+  try {
+    return sessionStorage;
+  } catch {
+    return localStorage;
+  }
+}
 
 export type ApiAction =
   | "listProjects"
@@ -82,9 +97,51 @@ export async function callApi<T = unknown>(body: Omit<ApiRequest, never>): Promi
 }
 
 export function getStoredName(): string {
-  return localStorage.getItem(LS_NAME) ?? "";
+  return prefStorage().getItem(LS_NAME) ?? "";
 }
 
 export function setStoredName(name: string): void {
-  localStorage.setItem(LS_NAME, name.trim());
+  prefStorage().setItem(LS_NAME, name.trim());
+}
+
+function readParticipantBySheet_(): Record<string, string> {
+  try {
+    const raw = prefStorage().getItem(LS_PARTICIPANT_BY_SHEET);
+    if (!raw) return {};
+    const o = JSON.parse(raw) as unknown;
+    if (typeof o !== "object" || o === null || Array.isArray(o)) return {};
+    return o as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
+/** 讀取「在該分頁」上次選的使用者；若無則退回全域上次姓名 */
+export function getStoredParticipantForSheet(sheetName: string): string {
+  const sh = sheetName.trim();
+  if (!sh) return getStoredName();
+  const map = readParticipantBySheet_();
+  const v = map[sh]?.trim();
+  if (v) return v;
+  return getStoredName();
+}
+
+/** 寫入該分頁的上次使用者，並同步更新全域姓名 */
+export function setStoredParticipantForSheet(sheetName: string, participantName: string): void {
+  const sh = sheetName.trim();
+  const n = participantName.trim();
+  if (!sh || !n) return;
+  const map = readParticipantBySheet_();
+  map[sh] = n;
+  prefStorage().setItem(LS_PARTICIPANT_BY_SHEET, JSON.stringify(map));
+  setStoredName(n);
+}
+
+/** 上次選擇的專案（試算表分頁名稱） */
+export function getStoredSheet(): string {
+  return prefStorage().getItem(LS_SHEET) ?? "";
+}
+
+export function setStoredSheet(sheetName: string): void {
+  prefStorage().setItem(LS_SHEET, sheetName.trim());
 }

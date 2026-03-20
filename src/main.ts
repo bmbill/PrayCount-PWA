@@ -1,6 +1,13 @@
 import "./style.css";
 import { registerSW } from "virtual:pwa-register";
-import { callApi, getStoredName, setStoredName, type ApiResponse } from "./api";
+import {
+  callApi,
+  getStoredParticipantForSheet,
+  getStoredSheet,
+  setStoredParticipantForSheet,
+  setStoredSheet,
+  type ApiResponse,
+} from "./api";
 
 registerSW({ immediate: true });
 
@@ -114,6 +121,9 @@ function buildProjectCard() {
   `;
   card.querySelector("#refresh-projects")?.addEventListener("click", () => loadProjects(card));
   card.querySelector("#project-select")?.addEventListener("change", () => {
+    const sel = card.querySelector<HTMLSelectElement>("#project-select");
+    const v = sel?.value?.trim() ?? "";
+    if (v) setStoredSheet(v);
     void onProjectChanged(card);
   });
   return card;
@@ -137,7 +147,7 @@ async function loadProjects(card: HTMLElement) {
   );
   select.disabled = false;
   if (!data) return;
-  const current = select.value;
+  const sessionProject = select.value;
   select.innerHTML = "";
   if (data.sheets.length === 0) {
     select.appendChild(new Option("（尚無分頁，請先到線上表格加一個新分頁）", ""));
@@ -150,7 +160,15 @@ async function loadProjects(card: HTMLElement) {
   for (const s of data.sheets) {
     select.appendChild(new Option(s, s));
   }
-  if (current && data.sheets.includes(current)) select.value = current;
+  const remembered = getStoredSheet();
+  let picked = "";
+  if (remembered && data.sheets.includes(remembered)) picked = remembered;
+  else if (sessionProject && data.sheets.includes(sessionProject)) picked = sessionProject;
+  else if (data.sheets.length > 0) picked = data.sheets[0];
+  if (picked) {
+    select.value = picked;
+    setStoredSheet(picked);
+  }
   const pcard = document.querySelector("#card-participant") as HTMLElement | null;
   if (pcard) await loadParticipants(pcard);
   else {
@@ -182,7 +200,8 @@ function buildParticipantCard() {
   card.querySelector("#participant-select")?.addEventListener("change", () => {
     const sel = card.querySelector<HTMLSelectElement>("#participant-select");
     const v = sel?.value?.trim() ?? "";
-    if (v) setStoredName(v);
+    const sh = getSelectedSheet();
+    if (v && sh) setStoredParticipantForSheet(sh, v);
     void refreshTotals();
     void loadTodayCount();
   });
@@ -210,7 +229,7 @@ async function loadParticipants(card: HTMLElement) {
   if (!data) return;
 
   const names = data.names;
-  const stored = getStoredName();
+  const stored = getStoredParticipantForSheet(sheet);
   select.innerHTML = "";
   select.appendChild(new Option("（請選擇使用者）", ""));
   for (const n of names) {
@@ -221,7 +240,7 @@ async function loadParticipants(card: HTMLElement) {
     select.value = stored;
   } else if (names.length === 1) {
     select.value = names[0];
-    setStoredName(names[0]);
+    setStoredParticipantForSheet(sheet, names[0]);
   } else {
     select.value = "";
   }
@@ -251,7 +270,7 @@ async function addParticipantFlow(card: HTMLElement) {
     })
   );
   if (!ok) return;
-  setStoredName(name);
+  setStoredParticipantForSheet(sheet, name);
   await loadParticipants(card);
   clearError(card);
   const tip = el(`<div class="msg msg-ok"></div>`);

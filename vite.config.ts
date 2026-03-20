@@ -36,21 +36,27 @@ export default defineConfig(({ mode }) => {
     plugins: [
       VitePWA({
         registerType: "autoUpdate",
-        includeAssets: ["favicon.svg"],
+        includeAssets: ["favicon.svg", "icon.png"],
         manifest: {
-        name: "送祝福",
-        short_name: "送祝福",
-        description: "送祝福 · 線上同步記錄",
+          name: "送祝福",
+          short_name: "送祝福",
+          description: "送祝福 · 線上同步記錄",
           theme_color: "#1a5f4a",
           background_color: "#f5f0e8",
           display: "standalone",
           start_url: base,
           icons: [
             {
-              src: "favicon.svg",
-              sizes: "any",
-              type: "image/svg+xml",
-              purpose: "any maskable",
+              src: "icon.png",
+              sizes: "192x192",
+              type: "image/png",
+              purpose: "any",
+            },
+            {
+              src: "icon.png",
+              sizes: "512x512",
+              type: "image/png",
+              purpose: "any",
             },
           ],
         },

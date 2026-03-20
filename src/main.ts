@@ -1,0 +1,410 @@
+import "./style.css";
+import { registerSW } from "virtual:pwa-register";
+import { callApi, getStoredName, setStoredName, type ApiResponse } from "./api";
+
+registerSW({ immediate: true });
+
+const app = document.querySelector<HTMLDivElement>("#app")!;
+
+type ListData = { sheets: string[] };
+type ParticipantsData = { names: string[] };
+type TotalsData = { projectTotal: number; participantTotal: number };
+type CountData = { count: number };
+
+function el(html: string): HTMLElement {
+  const t = document.createElement("template");
+  t.innerHTML = html.trim();
+  return t.content.firstElementChild as HTMLElement;
+}
+
+function showError(card: HTMLElement, message: string) {
+  const existing = card.querySelector(".msg-error");
+  if (existing) existing.remove();
+  const m = el(`<div class="msg msg-error" role="alert"></div>`);
+  m.textContent = message;
+  card.appendChild(m);
+}
+
+function clearError(card: HTMLElement) {
+  card.querySelectorAll(".msg-error").forEach((n) => n.remove());
+}
+
+async function run<T>(
+  card: HTMLElement,
+  fn: () => Promise<ApiResponse<T>>
+): Promise<T | null> {
+  clearError(card);
+  const r = await fn();
+  if (!r.ok) {
+    showError(card, r.error);
+    return null;
+  }
+  return (r.data ?? undefined) as T;
+}
+
+function formatInt(n: number): string {
+  return n.toLocaleString("zh-Hant");
+}
+
+async function refreshTotals() {
+  const sheet = getSelectedSheet();
+  const p = getParticipant();
+  const projEl = document.querySelector("#stat-project-total");
+  const mineEl = document.querySelector("#stat-my-total");
+  if (!projEl || !mineEl) return;
+  if (!sheet) {
+    projEl.textContent = "—";
+    mineEl.textContent = "—";
+    return;
+  }
+  projEl.textContent = "…";
+  mineEl.textContent = p ? "…" : "—";
+  const r = await callApi<TotalsData>({
+    action: "getTotals",
+    sheetName: sheet,
+    participantName: p || "",
+  });
+  if (!r.ok || !r.data) {
+    projEl.textContent = "?";
+    mineEl.textContent = p ? "?" : "—";
+    return;
+  }
+  projEl.textContent = formatInt(r.data.projectTotal);
+  mineEl.textContent = p ? formatInt(r.data.participantTotal) : "—";
+}
+
+function render() {
+  app.innerHTML = "";
+  app.appendChild(buildHeader());
+  app.appendChild(buildProjectCard());
+  app.appendChild(buildParticipantCard());
+  app.appendChild(buildCountCard());
+  app.appendChild(buildConfigHint());
+}
+
+function buildHeader() {
+  return el(`
+    <header>
+      <h1>念佛計數</h1>
+      <p class="sub">資料儲存於 Google 試算表，需網路連線。</p>
+      <div class="stats-banner" id="stats-banner" aria-live="polite">
+        <div class="stat-item">
+          <span class="stat-label">本專案累積總計</span>
+          <span class="stat-value" id="stat-project-total">—</span>
+          <span class="stat-desc">第 3 列起，所有人欄位數字加總</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">我的累積總計</span>
+          <span class="stat-value" id="stat-my-total">—</span>
+          <span class="stat-desc">目前選擇使用者的欄位加總</span>
+        </div>
+      </div>
+    </header>
+  `);
+}
+
+function buildProjectCard() {
+  const card = el(`<section class="card" id="card-project"></section>`) as HTMLElement;
+  card.innerHTML = `
+    <label for="project-select">① 功課／專案（試算表分頁）</label>
+    <div class="row">
+      <select id="project-select"></select>
+      <button type="button" class="btn btn-ghost" id="refresh-projects">載入專案</button>
+    </div>
+  `;
+  card.querySelector("#refresh-projects")?.addEventListener("click", () => loadProjects(card));
+  card.querySelector("#project-select")?.addEventListener("change", () => {
+    void onProjectChanged(card);
+  });
+  return card;
+}
+
+async function onProjectChanged(_projectCard: HTMLElement) {
+  const pcard = document.querySelector("#card-participant") as HTMLElement | null;
+  if (pcard) await loadParticipants(pcard);
+  else {
+    await refreshTotals();
+    await loadTodayCount();
+  }
+}
+
+async function loadProjects(card: HTMLElement) {
+  const select = card.querySelector<HTMLSelectElement>("#project-select");
+  if (!select) return;
+  select.disabled = true;
+  const data = await run<ListData>(card, () =>
+    callApi<ListData>({ action: "listProjects" })
+  );
+  select.disabled = false;
+  if (!data) return;
+  const current = select.value;
+  select.innerHTML = "";
+  if (data.sheets.length === 0) {
+    select.appendChild(new Option("（尚無分頁，請在試算表手動新增工作表）", ""));
+    const pcard = document.querySelector("#card-participant") as HTMLElement | null;
+    if (pcard) await resetParticipantSelect(pcard);
+    await refreshTotals();
+    await loadTodayCount();
+    return;
+  }
+  for (const s of data.sheets) {
+    select.appendChild(new Option(s, s));
+  }
+  if (current && data.sheets.includes(current)) select.value = current;
+  const pcard = document.querySelector("#card-participant") as HTMLElement | null;
+  if (pcard) await loadParticipants(pcard);
+  else {
+    await refreshTotals();
+    await loadTodayCount();
+  }
+}
+
+async function resetParticipantSelect(card: HTMLElement) {
+  const select = card.querySelector<HTMLSelectElement>("#participant-select");
+  if (!select) return;
+  select.innerHTML = "";
+  select.appendChild(new Option("（請先選擇專案）", ""));
+  select.disabled = true;
+}
+
+function buildParticipantCard() {
+  const card = el(`<section class="card" id="card-participant"></section>`) as HTMLElement;
+  card.innerHTML = `
+    <label for="participant-select">② 使用者（試算表第 2 列姓名）</label>
+    <div class="row">
+      <select id="participant-select" disabled>
+        <option value="">（請先載入專案）</option>
+      </select>
+      <button type="button" class="btn btn-ghost" id="add-participant">新增使用者</button>
+    </div>
+    <p class="participant-hint">選擇使用者後會載入今日次數；新成員請按「新增使用者」。</p>
+  `;
+  card.querySelector("#participant-select")?.addEventListener("change", () => {
+    const sel = card.querySelector<HTMLSelectElement>("#participant-select");
+    const v = sel?.value?.trim() ?? "";
+    if (v) setStoredName(v);
+    void refreshTotals();
+    void loadTodayCount();
+  });
+  card.querySelector("#add-participant")?.addEventListener("click", () => {
+    void addParticipantFlow(card);
+  });
+  return card;
+}
+
+async function loadParticipants(card: HTMLElement) {
+  const select = card.querySelector<HTMLSelectElement>("#participant-select");
+  if (!select) return;
+  const sheet = getSelectedSheet();
+  if (!sheet) {
+    await resetParticipantSelect(card);
+    await refreshTotals();
+    await loadTodayCount();
+    return;
+  }
+  select.disabled = true;
+  const data = await run<ParticipantsData>(card, () =>
+    callApi<ParticipantsData>({ action: "listParticipants", sheetName: sheet })
+  );
+  select.disabled = false;
+  if (!data) return;
+
+  const names = data.names;
+  const stored = getStoredName();
+  select.innerHTML = "";
+  select.appendChild(new Option("（請選擇使用者）", ""));
+  for (const n of names) {
+    select.appendChild(new Option(n, n));
+  }
+
+  if (stored && names.includes(stored)) {
+    select.value = stored;
+  } else if (names.length === 1) {
+    select.value = names[0];
+    setStoredName(names[0]);
+  } else {
+    select.value = "";
+  }
+
+  await refreshTotals();
+  await loadTodayCount();
+}
+
+async function addParticipantFlow(card: HTMLElement) {
+  const sheet = getSelectedSheet();
+  if (!sheet) {
+    showError(card, "請先選擇並載入專案。");
+    return;
+  }
+  const raw = window.prompt("請輸入要新增的使用者姓名（將寫入試算表第 2 列空白欄）：");
+  if (raw === null) return;
+  const name = raw.trim();
+  if (!name) {
+    showError(card, "姓名不可為空白。");
+    return;
+  }
+  const ok = await run<{ column: number }>(card, () =>
+    callApi<{ column: number }>({
+      action: "ensureParticipantColumn",
+      sheetName: sheet,
+      participantName: name,
+    })
+  );
+  if (!ok) return;
+  setStoredName(name);
+  await loadParticipants(card);
+  clearError(card);
+  const tip = el(`<div class="msg msg-ok"></div>`);
+  tip.textContent = `已新增「${name}」並選取。`;
+  card.querySelector(".msg-ok")?.remove();
+  card.appendChild(tip);
+  setTimeout(() => tip.remove(), 3000);
+}
+
+function getSelectedSheet(): string {
+  const select = document.querySelector<HTMLSelectElement>("#project-select");
+  return select?.value ?? "";
+}
+
+function getParticipant(): string {
+  const select = document.querySelector<HTMLSelectElement>("#participant-select");
+  return select?.value?.trim() ?? "";
+}
+
+function buildCountCard() {
+  const card = el(`<section class="card" id="card-count"></section>`) as HTMLElement;
+  card.innerHTML = `
+    <p class="step-label">③ 今日次數（試算表時區建議 Asia/Taipei）</p>
+    <div class="stepper">
+      <button type="button" class="btn" id="minus" aria-label="減一">−</button>
+      <span class="count-display" id="count-val">—</span>
+      <button type="button" class="btn" id="plus" aria-label="加一">+</button>
+    </div>
+    <label for="count-input">直接修改數字</label>
+    <div class="row">
+      <input type="number" id="count-input" min="0" step="1" inputmode="numeric" />
+      <button type="button" class="btn" id="save-count">紀錄</button>
+    </div>
+    <p class="count-hint">加、減或改數字後，按「紀錄」才會寫入試算表。</p>
+  `;
+
+  card.querySelector("#plus")?.addEventListener("click", () => adjustLocal(card, 1));
+  card.querySelector("#minus")?.addEventListener("click", () => adjustLocal(card, -1));
+  card.querySelector("#save-count")?.addEventListener("click", () => commitCountToSheet(card));
+
+  return card;
+}
+
+async function loadTodayCount() {
+  const card = document.querySelector("#card-count") as HTMLElement | null;
+  if (!card) return;
+  const sheet = getSelectedSheet();
+  const participant = getParticipant();
+  const display = card.querySelector("#count-val");
+  const input = card.querySelector<HTMLInputElement>("#count-input");
+  if (!sheet || !participant) {
+    if (display) display.textContent = "—";
+    if (input) input.value = "";
+    clearError(card);
+    return;
+  }
+
+  if (display) display.textContent = "…";
+  const data = await run<CountData>(card, () =>
+    callApi<CountData>({
+      action: "getTodayCount",
+      sheetName: sheet,
+      participantName: participant,
+    })
+  );
+  if (!data) {
+    if (display) display.textContent = "—";
+    return;
+  }
+  if (display) display.textContent = String(data.count);
+  if (input) input.value = String(data.count);
+}
+
+function parseLocalCount(card: HTMLElement): number | null {
+  const input = card.querySelector<HTMLInputElement>("#count-input");
+  const display = card.querySelector("#count-val");
+  const d = display?.textContent?.trim() ?? "";
+  if (d === "—" || d === "…" || d === "") return null;
+  const fromInput = input?.value.trim() ?? "";
+  if (fromInput !== "") {
+    const v = Math.floor(Number(fromInput));
+    return Number.isNaN(v) ? null : v;
+  }
+  const v = Math.floor(Number(d));
+  return Number.isNaN(v) ? null : v;
+}
+
+function setLocalCountDisplay(card: HTMLElement, value: number) {
+  const display = card.querySelector("#count-val");
+  const input = card.querySelector<HTMLInputElement>("#count-input");
+  if (display) display.textContent = String(value);
+  if (input) input.value = String(value);
+}
+
+function adjustLocal(card: HTMLElement, delta: number) {
+  const sheet = getSelectedSheet();
+  const participant = getParticipant();
+  if (!sheet || !participant) {
+    showError(card, "請先選擇專案與使用者。");
+    return;
+  }
+  const current = parseLocalCount(card);
+  if (current === null) {
+    showError(card, "請先等待次數載入完成。");
+    return;
+  }
+  const next = Math.max(0, current + delta);
+  setLocalCountDisplay(card, next);
+  clearError(card);
+}
+
+async function commitCountToSheet(card: HTMLElement) {
+  const sheet = getSelectedSheet();
+  const participant = getParticipant();
+  if (!sheet || !participant) {
+    showError(card, "請先選擇專案與使用者。");
+    return;
+  }
+  const value = parseLocalCount(card);
+  if (value === null) {
+    showError(card, "請輸入有效數字，或等待載入完成。");
+    return;
+  }
+  const data = await run<CountData>(card, () =>
+    callApi<CountData>({
+      action: "setCount",
+      sheetName: sheet,
+      participantName: participant,
+      value,
+    })
+  );
+  if (!data) return;
+  setLocalCountDisplay(card, data.count);
+  const ok = el(`<div class="msg msg-ok">已紀錄到試算表。</div>`);
+  card.querySelector(".msg-ok")?.remove();
+  card.appendChild(ok);
+  setTimeout(() => ok.remove(), 2500);
+  await refreshTotals();
+}
+
+function buildConfigHint() {
+  return el(`
+    <section class="card">
+      <p style="margin:0;font-size:0.8rem;color:var(--muted)">
+        若無法連線，請檢查 Apps Script 部署網址、API 密鑰，以及瀏覽器 CORS（可改用 README 的代理）。
+      </p>
+    </section>
+  `);
+}
+
+render();
+
+void (async () => {
+  const projectCard = document.querySelector("#card-project") as HTMLElement;
+  await loadProjects(projectCard);
+})();

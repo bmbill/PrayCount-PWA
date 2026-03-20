@@ -18,6 +18,7 @@ function prefStorage(): Storage {
 export type ApiAction =
   | "listProjects"
   | "listParticipants"
+  | "bootstrapSheet"
   | "getTotals"
   | "getTodayCount"
   | "setCount"

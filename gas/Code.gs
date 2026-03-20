@@ -43,6 +43,8 @@ function doPost(e) {
         return jsonOut_({ ok: true, data: { sheets: listProjects_() } });
       case "listParticipants":
         return jsonOut_({ ok: true, data: { names: listParticipantNames_(body.sheetName) } });
+      case "bootstrapSheet":
+        return jsonOut_(bootstrapSheet_(body.sheetName, body.participantName));
       case "getTotals":
         return jsonOut_(getTotals_(body.sheetName, body.participantName));
       case "createProject":
@@ -184,8 +186,7 @@ function getSheetByNameOrThrow_(sheetName) {
 }
 
 /** 第 2 列由 B 欄起，非空白儲存格視為使用者姓名（依欄位順序） */
-function listParticipantNames_(sheetName) {
-  var sheet = getSheetByNameOrThrow_(sheetName);
+function listParticipantNamesFromSheet_(sheet) {
   var lastCol = Math.max(sheet.getLastColumn(), 2);
   var names = [];
   for (var c = 2; c <= lastCol; c++) {
@@ -194,6 +195,11 @@ function listParticipantNames_(sheetName) {
     if (s) names.push(s);
   }
   return names;
+}
+
+function listParticipantNames_(sheetName) {
+  var sheet = getSheetByNameOrThrow_(sheetName);
+  return listParticipantNamesFromSheet_(sheet);
 }
 
 function parseCellNumber_(v) {
@@ -233,8 +239,7 @@ function getGoalForSheet_(sheetName) {
  * projectTotal：第 3 列起，B 欄至最後有資料欄，所有數字加總。
  * participantTotal：指定姓名欄（第 2 列標題相符）同區間加總；未指定姓名則為 0。
  */
-function getTotals_(sheetName, participantName) {
-  var sheet = getSheetByNameOrThrow_(sheetName);
+function getTotalsCore_(sheet, sheetName, participantName) {
   var lastRow = sheet.getLastRow();
   var lastCol = sheet.getLastColumn();
   var projectTotal = 0;
@@ -260,11 +265,48 @@ function getTotals_(sheetName, participantName) {
   }
   var goal = getGoalForSheet_(sheetName);
   return {
+    projectTotal: Math.floor(projectTotal),
+    participantTotal: Math.floor(participantTotal),
+    goal: goal,
+  };
+}
+
+function getTotals_(sheetName, participantName) {
+  var sheet = getSheetByNameOrThrow_(sheetName);
+  return { ok: true, data: getTotalsCore_(sheet, sheetName, participantName) };
+}
+
+/**
+ * 一次開啟分頁：回傳使用者名單、總計、目標與（若姓名有效）今日次數。
+ * 減少 PWA 與 GAS 間往返次數與冷啟動次數。
+ */
+function bootstrapSheet_(sheetName, participantName) {
+  var sheet = getSheetByNameOrThrow_(sheetName);
+  var names = listParticipantNamesFromSheet_(sheet);
+  var pname =
+    participantName && typeof participantName === "string" ? String(participantName).trim() : "";
+  if (pname && names.indexOf(pname) === -1) pname = "";
+  var totals = getTotalsCore_(sheet, sheetName, pname);
+  var todayCount = null;
+  if (pname) {
+    var col = findParticipantCol_(sheet, pname);
+    if (col) {
+      var today = todayString_();
+      var row = getOrCreateTodayRow_(sheet, today);
+      var raw = sheet.getRange(row, col).getValue();
+      var n = parseInt(raw, 10);
+      if (isNaN(n) || raw === "") n = 0;
+      todayCount = n;
+    }
+  }
+  return {
     ok: true,
     data: {
-      projectTotal: Math.floor(projectTotal),
-      participantTotal: Math.floor(participantTotal),
-      goal: goal,
+      names: names,
+      projectTotal: totals.projectTotal,
+      participantTotal: totals.participantTotal,
+      goal: totals.goal,
+      todayCount: todayCount,
     },
   };
 }

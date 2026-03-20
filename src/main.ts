@@ -14,7 +14,14 @@ registerSW({ immediate: true });
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
 type ListData = { sheets: string[] };
-type ParticipantsData = { names: string[] };
+/** 與 getTotals 相同欄位，另含名單與可選的今日次數（一次 bootstrap 載入） */
+type BootstrapSheetData = {
+  names: string[];
+  projectTotal: number;
+  participantTotal: number;
+  goal: number;
+  todayCount: number | null;
+};
 type TotalsData = { projectTotal: number; participantTotal: number; goal: number };
 type CountData = { count: number };
 
@@ -65,6 +72,29 @@ function resetGoalProgressUI() {
   document.querySelector("#goal-bar-track")?.setAttribute("aria-valuenow", "0");
 }
 
+/** 將總計／進度條寫入頁首（不依賴 API） */
+function applyTotalsUI(data: TotalsData) {
+  const projEl = document.querySelector("#stat-project-total");
+  const mineEl = document.querySelector("#stat-my-total");
+  if (!projEl || !mineEl) return;
+  const p = getParticipant();
+  projEl.textContent = formatInt(data.projectTotal);
+  mineEl.textContent = p ? formatInt(data.participantTotal) : "—";
+  const goal = typeof data.goal === "number" && data.goal > 0 ? data.goal : 2_000_000;
+  updateGoalProgressUI(data.projectTotal, goal);
+}
+
+/** 更新今日次數顯示（③ 卡片） */
+function applyTodayCountUI(count: number) {
+  const card = document.querySelector("#card-count") as HTMLElement | null;
+  if (!card) return;
+  const display = card.querySelector("#count-val");
+  const input = card.querySelector<HTMLInputElement>("#count-input");
+  if (display) display.textContent = String(count);
+  if (input) input.value = String(count);
+  clearError(card);
+}
+
 function updateGoalProgressUI(current: number, goal: number) {
   const wrap = document.querySelector("#goal-progress-wrap") as HTMLElement | null;
   const fill = document.querySelector("#goal-bar-fill") as HTMLElement | null;
@@ -109,10 +139,12 @@ async function refreshTotals() {
     resetGoalProgressUI();
     return;
   }
-  projEl.textContent = formatInt(r.data.projectTotal);
-  mineEl.textContent = p ? formatInt(r.data.participantTotal) : "—";
-  const goal = typeof r.data.goal === "number" && r.data.goal > 0 ? r.data.goal : 2_000_000;
-  updateGoalProgressUI(r.data.projectTotal, goal);
+  applyTotalsUI(r.data);
+}
+
+/** 總計與今日次數並行請求（節省等待時間） */
+async function refreshTotalsAndToday() {
+  await Promise.all([refreshTotals(), loadTodayCount()]);
 }
 
 function render() {
@@ -185,8 +217,7 @@ async function onProjectChanged(_projectCard: HTMLElement) {
   const pcard = document.querySelector("#card-participant") as HTMLElement | null;
   if (pcard) await loadParticipants(pcard);
   else {
-    await refreshTotals();
-    await loadTodayCount();
+    await refreshTotalsAndToday();
   }
 }
 
@@ -205,8 +236,7 @@ async function loadProjects(card: HTMLElement) {
     select.appendChild(new Option("（尚無分頁，請先到線上表格加一個新分頁）", ""));
     const pcard = document.querySelector("#card-participant") as HTMLElement | null;
     if (pcard) await resetParticipantSelect(pcard);
-    await refreshTotals();
-    await loadTodayCount();
+    await refreshTotalsAndToday();
     return;
   }
   for (const s of data.sheets) {
@@ -224,8 +254,7 @@ async function loadProjects(card: HTMLElement) {
   const pcard = document.querySelector("#card-participant") as HTMLElement | null;
   if (pcard) await loadParticipants(pcard);
   else {
-    await refreshTotals();
-    await loadTodayCount();
+    await refreshTotalsAndToday();
   }
 }
 
@@ -254,8 +283,7 @@ function buildParticipantCard() {
     const v = sel?.value?.trim() ?? "";
     const sh = getSelectedSheet();
     if (v && sh) setStoredParticipantForSheet(sh, v);
-    void refreshTotals();
-    void loadTodayCount();
+    void refreshTotalsAndToday();
   });
   card.querySelector("#add-participant")?.addEventListener("click", () => {
     void addParticipantFlow(card);
@@ -269,19 +297,29 @@ async function loadParticipants(card: HTMLElement) {
   const sheet = getSelectedSheet();
   if (!sheet) {
     await resetParticipantSelect(card);
-    await refreshTotals();
-    await loadTodayCount();
+    await refreshTotalsAndToday();
     return;
   }
+  const countCard = document.querySelector("#card-count") as HTMLElement | null;
+  const countDisplay = countCard?.querySelector("#count-val");
+  if (countDisplay) countDisplay.textContent = "…";
+
   select.disabled = true;
-  const data = await run<ParticipantsData>(card, () =>
-    callApi<ParticipantsData>({ action: "listParticipants", sheetName: sheet })
+  const stored = getStoredParticipantForSheet(sheet);
+  const data = await run<BootstrapSheetData>(card, () =>
+    callApi<BootstrapSheetData>({
+      action: "bootstrapSheet",
+      sheetName: sheet,
+      participantName: stored || "",
+    })
   );
   select.disabled = false;
-  if (!data) return;
+  if (!data) {
+    if (countDisplay) countDisplay.textContent = "—";
+    return;
+  }
 
   const names = data.names;
-  const stored = getStoredParticipantForSheet(sheet);
   select.innerHTML = "";
   select.appendChild(new Option("（請選擇使用者）", ""));
   for (const n of names) {
@@ -297,8 +335,17 @@ async function loadParticipants(card: HTMLElement) {
     select.value = "";
   }
 
-  await refreshTotals();
-  await loadTodayCount();
+  applyTotalsUI({
+    projectTotal: data.projectTotal,
+    participantTotal: data.participantTotal,
+    goal: data.goal,
+  });
+
+  if (typeof data.todayCount === "number") {
+    applyTodayCountUI(data.todayCount);
+  } else {
+    await loadTodayCount();
+  }
 }
 
 async function addParticipantFlow(card: HTMLElement) {

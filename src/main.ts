@@ -85,18 +85,18 @@ function render() {
 function buildHeader() {
   return el(`
     <header>
-      <h1>念佛計數</h1>
-      <p class="sub">資料儲存於 Google 試算表，需網路連線。</p>
+      <h1>送祝福</h1>
+      <p class="sub">資料存在線上表格，需要連網才能用。</p>
       <div class="stats-banner" id="stats-banner" aria-live="polite">
         <div class="stat-item">
           <span class="stat-label">本專案累積總計</span>
           <span class="stat-value" id="stat-project-total">—</span>
-          <span class="stat-desc">第 3 列起，所有人欄位數字加總</span>
+          <span class="stat-desc">本專案裡，所有人次數加起來</span>
         </div>
         <div class="stat-item">
           <span class="stat-label">我的累積總計</span>
           <span class="stat-value" id="stat-my-total">—</span>
-          <span class="stat-desc">目前選擇使用者的欄位加總</span>
+          <span class="stat-desc">目前選的人，累計加起來</span>
         </div>
       </div>
     </header>
@@ -106,7 +106,7 @@ function buildHeader() {
 function buildProjectCard() {
   const card = el(`<section class="card" id="card-project"></section>`) as HTMLElement;
   card.innerHTML = `
-    <label for="project-select">① 功課／專案（試算表分頁）</label>
+    <label for="project-select">① 功課／專案</label>
     <div class="row">
       <select id="project-select"></select>
       <button type="button" class="btn btn-ghost" id="refresh-projects">載入專案</button>
@@ -140,7 +140,7 @@ async function loadProjects(card: HTMLElement) {
   const current = select.value;
   select.innerHTML = "";
   if (data.sheets.length === 0) {
-    select.appendChild(new Option("（尚無分頁，請在試算表手動新增工作表）", ""));
+    select.appendChild(new Option("（尚無分頁，請先到線上表格加一個新分頁）", ""));
     const pcard = document.querySelector("#card-participant") as HTMLElement | null;
     if (pcard) await resetParticipantSelect(pcard);
     await refreshTotals();
@@ -170,7 +170,7 @@ async function resetParticipantSelect(card: HTMLElement) {
 function buildParticipantCard() {
   const card = el(`<section class="card" id="card-participant"></section>`) as HTMLElement;
   card.innerHTML = `
-    <label for="participant-select">② 使用者（試算表第 2 列姓名）</label>
+    <label for="participant-select">② 使用者</label>
     <div class="row">
       <select id="participant-select" disabled>
         <option value="">（請先載入專案）</option>
@@ -236,7 +236,7 @@ async function addParticipantFlow(card: HTMLElement) {
     showError(card, "請先選擇並載入專案。");
     return;
   }
-  const raw = window.prompt("請輸入要新增的使用者姓名（將寫入試算表第 2 列空白欄）：");
+  const raw = window.prompt("請輸入新使用者的名字，會自動加到名單裡：");
   if (raw === null) return;
   const name = raw.trim();
   if (!name) {
@@ -274,7 +274,7 @@ function getParticipant(): string {
 function buildCountCard() {
   const card = el(`<section class="card" id="card-count"></section>`) as HTMLElement;
   card.innerHTML = `
-    <p class="step-label">③ 今日次數（試算表時區建議 Asia/Taipei）</p>
+    <p class="step-label">③ 今日次數（以台北時間為準）</p>
     <div class="stepper">
       <button type="button" class="btn" id="minus" aria-label="減一">−</button>
       <span class="count-display" id="count-val">—</span>
@@ -285,7 +285,7 @@ function buildCountCard() {
       <input type="number" id="count-input" min="0" step="1" inputmode="numeric" />
       <button type="button" class="btn" id="save-count">紀錄</button>
     </div>
-    <p class="count-hint">加、減或改數字後，按「紀錄」才會寫入試算表。</p>
+    <p class="count-hint">加、減或改數字後，按「紀錄」才會存到線上。</p>
   `;
 
   card.querySelector("#plus")?.addEventListener("click", () => adjustLocal(card, 1));
@@ -385,7 +385,7 @@ async function commitCountToSheet(card: HTMLElement) {
   );
   if (!data) return;
   setLocalCountDisplay(card, data.count);
-  const ok = el(`<div class="msg msg-ok">已紀錄到試算表。</div>`);
+  const ok = el(`<div class="msg msg-ok">已幫你存好了。</div>`);
   card.querySelector(".msg-ok")?.remove();
   card.appendChild(ok);
   setTimeout(() => ok.remove(), 2500);

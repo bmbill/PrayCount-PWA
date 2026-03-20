@@ -38,9 +38,9 @@ export default defineConfig(({ mode }) => {
         registerType: "autoUpdate",
         includeAssets: ["favicon.svg"],
         manifest: {
-          name: "念佛計數",
-          short_name: "念佛計數",
-          description: "記錄每日念佛／咒次數（Google 試算表）",
+        name: "送祝福",
+        short_name: "送祝福",
+        description: "送祝福 · 線上同步記錄",
           theme_color: "#1a5f4a",
           background_color: "#f5f0e8",
           display: "standalone",

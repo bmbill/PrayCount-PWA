@@ -143,7 +143,7 @@ function createProject_(sheetName, title) {
   var t = (title && String(title).trim()) || name;
   var ss = getSpreadsheet_();
   var existing = ss.getSheetByName(name);
-  if (existing) throw new Error("分頁已存在，請換名稱或刪除試算表上既有分頁：" + name);
+  if (existing) throw new Error("分頁已存在，請換名稱或到線上表格刪掉同名分頁：" + name);
 
   var sheet = ss.insertSheet(name);
   try {

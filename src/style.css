@@ -1,21 +1,35 @@
 :root {
-  --bg: #f5f0e8;
-  --surface: #fffef9;
-  --text: #1c1917;
-  --muted: #57534e;
-  --primary: #1a5f4a;
-  --primary-hover: #145a45;
-  --danger: #b91c1c;
-  --border: #d6d3d1;
-  --radius: 12px;
-  font-family: "Segoe UI", "Noto Sans TC", system-ui, sans-serif;
-  line-height: 1.5;
+  /* 溫馨暖色：奶油、蜜桃、玫瑰豆沙、杏色 */
+  --bg-deep: #fff5f0;
+  --bg-mid: #ffefe6;
+  --bg-light: #fffaf6;
+  --surface: #fffcfa;
+  --surface-elevated: #ffffff;
+  --text: #3d2c2a;
+  --muted: #7d6560;
+  --primary: #c45c6a;
+  --primary-hover: #b04a58;
+  --primary-soft: rgb(196 92 106 / 0.12);
+  --accent-warm: #d4a574;
+  --accent-blush: #e8a598;
+  --danger: #c45c5c;
+  --border: #edd5ce;
+  --border-soft: #f5e4de;
+  --radius: 14px;
+  --shadow-warm: 0 4px 20px rgb(180 100 90 / 0.08);
+  --shadow-card: 0 2px 12px rgb(160 90 80 / 0.06);
+  font-family: "Segoe UI", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui,
+    sans-serif;
+  line-height: 1.55;
   color: var(--text);
-  background: var(--bg);
 }
 
 * {
   box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
 }
 
 body {
@@ -23,18 +37,54 @@ body {
   min-height: 100dvh;
   padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
     max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  position: relative;
+  /* 主背景：晨曦般的暖漸層 */
+  background-color: var(--bg-mid);
+  background-image:
+    radial-gradient(ellipse 120% 80% at 50% -20%, rgb(255 220 200 / 0.55) 0%, transparent 55%),
+    radial-gradient(ellipse 90% 60% at 100% 50%, rgb(255 210 195 / 0.25) 0%, transparent 50%),
+    radial-gradient(ellipse 70% 50% at 0% 80%, rgb(255 228 210 / 0.35) 0%, transparent 45%),
+    linear-gradient(168deg, var(--bg-light) 0%, var(--bg-deep) 48%, #ffe8dc 100%);
+  background-attachment: fixed;
+}
+
+/* 溫馨圖樣層：愛心、光點、小星星（平鋪） */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 1;
+  background-image: url("./assets/warm-decor.svg");
+  background-size: 200px 200px;
+  background-repeat: repeat;
+  opacity: 0.7;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body {
+    background-attachment: scroll;
+  }
 }
 
 #app {
+  position: relative;
+  z-index: 1;
   max-width: 420px;
   margin: 0 auto;
 }
 
 h1 {
-  font-size: 1.35rem;
-  font-weight: 700;
-  margin: 0 0 0.25rem;
-  color: var(--primary);
+  font-size: 1.45rem;
+  font-weight: 800;
+  margin: 0 0 0.35rem;
+  letter-spacing: 0.02em;
+  background: linear-gradient(135deg, #b84d5c 0%, #c45c6a 40%, #d4786a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
 }
 
 .sub {
@@ -49,10 +99,10 @@ h1 {
   gap: 0.75rem;
   margin-bottom: 0.25rem;
   padding: 1rem 1.1rem;
-  background: linear-gradient(145deg, #e8f5f0 0%, #d4ebe3 50%, #c5e4d8 100%);
-  border: 2px solid var(--primary);
+  background: linear-gradient(145deg, #fff8f4 0%, #ffeef0 45%, #ffe4e8 100%);
+  border: 1px solid rgb(232 165 152 / 0.45);
   border-radius: var(--radius);
-  box-shadow: 0 2px 8px rgb(26 95 74 / 0.12);
+  box-shadow: var(--shadow-warm), inset 0 1px 0 rgb(255 255 255 / 0.85);
 }
 
 @media (max-width: 380px) {
@@ -71,7 +121,7 @@ h1 {
 .stat-label {
   font-size: 0.75rem;
   font-weight: 700;
-  color: var(--primary);
+  color: #a84855;
   text-transform: none;
   letter-spacing: 0.02em;
 }
@@ -87,7 +137,7 @@ h1 {
 .stat-desc {
   font-size: 0.65rem;
   color: var(--muted);
-  line-height: 1.3;
+  line-height: 1.35;
 }
 
 .step-label {
@@ -106,11 +156,12 @@ h1 {
 
 .card {
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-soft);
   border-radius: var(--radius);
-  padding: 1rem 1.1rem;
+  padding: 1rem 1.15rem;
   margin-bottom: 1rem;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(8px);
 }
 
 label {
@@ -127,15 +178,17 @@ select {
   width: 100%;
   padding: 0.6rem 0.75rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 1rem;
-  background: #fff;
+  background: var(--surface-elevated);
+  color: var(--text);
 }
 
 input:focus,
 select:focus {
-  outline: 2px solid var(--primary);
+  outline: 2px solid var(--accent-blush);
   outline-offset: 1px;
+  border-color: rgb(232 165 152 / 0.8);
 }
 
 .row {
@@ -151,16 +204,17 @@ select:focus {
   justify-content: center;
   padding: 0.55rem 1rem;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  background: var(--primary);
-  color: #fff;
+  background: linear-gradient(160deg, #d66a78 0%, #c45c6a 45%, #b84d5c 100%);
+  color: #fffefc;
+  box-shadow: 0 2px 8px rgb(180 70 90 / 0.25);
 }
 
 .btn:hover {
-  background: var(--primary-hover);
+  background: linear-gradient(160deg, #e07885 0%, #c95a68 45%, #a84352 100%);
 }
 
 .btn:disabled {
@@ -169,13 +223,14 @@ select:focus {
 }
 
 .btn-ghost {
-  background: transparent;
-  color: var(--primary);
+  background: rgb(255 255 255 / 0.65);
+  color: #a84855;
   border: 1px solid var(--border);
+  box-shadow: none;
 }
 
 .btn-ghost:hover {
-  background: rgb(26 95 74 / 0.08);
+  background: var(--primary-soft);
 }
 
 .btn-danger {
@@ -188,6 +243,7 @@ select:focus {
   font-variant-numeric: tabular-nums;
   min-width: 4ch;
   text-align: center;
+  color: #8f3d4a;
 }
 
 .stepper {
@@ -209,20 +265,20 @@ select:focus {
 .msg {
   font-size: 0.875rem;
   padding: 0.5rem 0.65rem;
-  border-radius: 8px;
+  border-radius: 10px;
   margin-top: 0.75rem;
 }
 
 .msg-error {
-  background: #fef2f2;
-  color: #991b1b;
-  border: 1px solid #fecaca;
+  background: #fff5f4;
+  color: #9b3c3c;
+  border: 1px solid #f0c4c0;
 }
 
 .msg-ok {
-  background: #ecfdf5;
-  color: #065f46;
-  border: 1px solid #a7f3d0;
+  background: linear-gradient(135deg, #f0faf5 0%, #e8f5ee 100%);
+  color: #2d6a4f;
+  border: 1px solid #b8e0cc;
 }
 
 details summary {
@@ -244,6 +300,6 @@ details summary {
 
 hr {
   border: none;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--border-soft);
   margin: 1rem 0;
 }

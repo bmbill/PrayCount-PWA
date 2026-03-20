@@ -41,8 +41,8 @@ export default defineConfig(({ mode }) => {
           name: "送祝福",
           short_name: "送祝福",
           description: "送祝福 · 線上同步記錄",
-          theme_color: "#1a5f4a",
-          background_color: "#f5f0e8",
+          theme_color: "#ffe8dc",
+          background_color: "#fff5f0",
           display: "standalone",
           start_url: base,
           icons: [

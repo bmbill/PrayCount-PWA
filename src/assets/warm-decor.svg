@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160">
+  <defs>
+    <style>
+      .h { fill: #c97d7d; opacity: 0.09; }
+      .d { fill: #d4a574; opacity: 0.1; }
+      .s { fill: #e8b4a8; opacity: 0.11; }
+    </style>
+  </defs>
+  <!-- Ã -->
+  <path class="h" d="M80 124c14-10 26-22 26-38 0-12-10-22-22-22-7 0-13 3-16 9-3-6-9-9-16-9-12 0-22 10-22 22 0 16 12 28 26 38z"/>
+  <!-- IÞ -->
+  <circle class="d" cx="32" cy="36" r="4"/>
+  <circle class="s" cx="128" cy="44" r="3"/>
+  <circle class="d" cx="48" cy="118" r="2.5"/>
+  <circle class="s" cx="132" cy="112" r="3.5"/>
+  <!--  -->
+  <path class="s" d="M24 88l2.5 5 5.5.8-4 3.9 1 5.5-5-2.6-5 2.6 1-5.5-4-3.9 5.5-.8z"/>
+  <path class="d" d="M136 76l1.8 3.6 4 .6-2.9 2.8.7 4-3.6-1.7-3.6 1.7.7-4-2.9-2.8 4-.6z" transform="scale(0.85) translate(8 8)"/>
+</svg>

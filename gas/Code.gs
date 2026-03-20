@@ -5,6 +5,8 @@
  *   SPREADSHEET_ID — 母試算表 ID
  *   API_KEY        — 與 PWA 建置變數 VITE_API_KEY 相同
  *   DEFAULT_DATE_ROWS — 選填，預設 365；新建分頁時 A 欄預填天數
+ *   PROJECT_GOAL — 選填，專案進度條目標（數字），預設 2000000
+ *   GOALS_JSON — 選填，依分頁覆寫目標，例：{"度母咒":2000000,"心經":500000}
  *
  * 部署：執行身分「我」、存取「任何人」（匿名仍須正確 API_KEY）。
  */
@@ -202,6 +204,31 @@ function parseCellNumber_(v) {
   return isNaN(n) ? 0 : n;
 }
 
+var DEFAULT_PROJECT_GOAL = 2000000;
+
+/**
+ * 進度條目標：GOALS_JSON 依分頁名優先，其次 PROJECT_GOAL，最後預設 200 萬。
+ */
+function getGoalForSheet_(sheetName) {
+  var sh = String(sheetName || "").trim();
+  var rawJson = PropertiesService.getScriptProperties().getProperty("GOALS_JSON");
+  if (rawJson && sh) {
+    try {
+      var map = JSON.parse(rawJson);
+      if (map && typeof map === "object" && !Array.isArray(map) && map[sh] != null) {
+        var gj = parseInt(String(map[sh]).replace(/,/g, ""), 10);
+        if (!isNaN(gj) && gj > 0) return Math.min(gj, 1e12);
+      }
+    } catch (ignore) {}
+  }
+  var prop = PropertiesService.getScriptProperties().getProperty("PROJECT_GOAL");
+  if (prop) {
+    var n = parseInt(String(prop).replace(/,/g, ""), 10);
+    if (!isNaN(n) && n > 0) return Math.min(n, 1e12);
+  }
+  return DEFAULT_PROJECT_GOAL;
+}
+
 /**
  * projectTotal：第 3 列起，B 欄至最後有資料欄，所有數字加總。
  * participantTotal：指定姓名欄（第 2 列標題相符）同區間加總；未指定姓名則為 0。
@@ -231,11 +258,13 @@ function getTotals_(sheetName, participantName) {
       }
     }
   }
+  var goal = getGoalForSheet_(sheetName);
   return {
     ok: true,
     data: {
       projectTotal: Math.floor(projectTotal),
       participantTotal: Math.floor(participantTotal),
+      goal: goal,
     },
   };
 }

@@ -15,7 +15,7 @@ const app = document.querySelector<HTMLDivElement>("#app")!;
 
 type ListData = { sheets: string[] };
 type ParticipantsData = { names: string[] };
-type TotalsData = { projectTotal: number; participantTotal: number };
+type TotalsData = { projectTotal: number; participantTotal: number; goal: number };
 type CountData = { count: number };
 
 function el(html: string): HTMLElement {
@@ -53,6 +53,37 @@ function formatInt(n: number): string {
   return n.toLocaleString("zh-Hant");
 }
 
+function resetGoalProgressUI() {
+  const wrap = document.querySelector("#goal-progress-wrap") as HTMLElement | null;
+  const fill = document.querySelector("#goal-bar-fill") as HTMLElement | null;
+  const fraction = document.querySelector("#goal-fraction");
+  const percent = document.querySelector("#goal-percent");
+  wrap?.setAttribute("hidden", "");
+  if (fill) fill.style.width = "0%";
+  if (fraction) fraction.textContent = "— / —";
+  if (percent) percent.textContent = "—";
+  document.querySelector("#goal-bar-track")?.setAttribute("aria-valuenow", "0");
+}
+
+function updateGoalProgressUI(current: number, goal: number) {
+  const wrap = document.querySelector("#goal-progress-wrap") as HTMLElement | null;
+  const fill = document.querySelector("#goal-bar-fill") as HTMLElement | null;
+  const fraction = document.querySelector("#goal-fraction");
+  const percent = document.querySelector("#goal-percent");
+  const track = document.querySelector("#goal-bar-track");
+  if (!wrap || !fill || !fraction || !percent || !track) return;
+  wrap.removeAttribute("hidden");
+  const g = goal > 0 ? goal : 1;
+  const pctRaw = (current / g) * 100;
+  const pctDisplay = Math.round(pctRaw * 100) / 100;
+  const barW = Math.min(100, Math.max(0, pctRaw));
+  fill.style.width = `${barW}%`;
+  track.setAttribute("aria-valuenow", String(Math.min(100, barW)));
+  fraction.textContent = `${formatInt(current)} / ${formatInt(goal)}`;
+  percent.textContent =
+    pctRaw >= 10 ? `${pctDisplay.toFixed(1)}%` : pctRaw >= 0.01 ? `${pctDisplay.toFixed(2)}%` : current > 0 ? "<0.01%" : "0%";
+}
+
 async function refreshTotals() {
   const sheet = getSelectedSheet();
   const p = getParticipant();
@@ -62,6 +93,7 @@ async function refreshTotals() {
   if (!sheet) {
     projEl.textContent = "—";
     mineEl.textContent = "—";
+    resetGoalProgressUI();
     return;
   }
   projEl.textContent = "…";
@@ -74,10 +106,13 @@ async function refreshTotals() {
   if (!r.ok || !r.data) {
     projEl.textContent = "?";
     mineEl.textContent = p ? "?" : "—";
+    resetGoalProgressUI();
     return;
   }
   projEl.textContent = formatInt(r.data.projectTotal);
   mineEl.textContent = p ? formatInt(r.data.participantTotal) : "—";
+  const goal = typeof r.data.goal === "number" && r.data.goal > 0 ? r.data.goal : 2_000_000;
+  updateGoalProgressUI(r.data.projectTotal, goal);
 }
 
 function render() {
@@ -98,13 +133,30 @@ function buildHeader() {
         <div class="stat-item">
           <span class="stat-label">本專案累積總計</span>
           <span class="stat-value" id="stat-project-total">—</span>
-          <span class="stat-desc">本專案裡，所有人次數加起來</span>
         </div>
         <div class="stat-item">
           <span class="stat-label">我的累積總計</span>
           <span class="stat-value" id="stat-my-total">—</span>
-          <span class="stat-desc">目前選的人，累計加起來</span>
         </div>
+      </div>
+      <div class="goal-progress" id="goal-progress-wrap" hidden>
+        <p class="goal-progress-title">眾願進度（對照目標）</p>
+        <div
+          class="goal-bar-track"
+          id="goal-bar-track"
+          role="progressbar"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="0"
+          aria-label="專案累積對目標的完成比例"
+        >
+          <div class="goal-bar-fill" id="goal-bar-fill"></div>
+        </div>
+        <p class="goal-progress-meta">
+          <span id="goal-fraction" class="goal-fraction">— / —</span>
+          <span class="goal-sep">·</span>
+          <span id="goal-percent" class="goal-percent-value">—</span>
+        </p>
       </div>
     </header>
   `);
@@ -415,7 +467,7 @@ function buildConfigHint() {
   return el(`
     <section class="card">
       <p style="margin:0;font-size:0.8rem;color:var(--muted)">
-        若無法連線，請檢查 Apps Script 部署網址、API 密鑰，以及瀏覽器 CORS（可改用 README 的代理）。
+        若無法連線，請聯絡夏安。
       </p>
     </section>
   `);

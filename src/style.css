@@ -93,6 +93,118 @@ h1 {
   margin-bottom: 1rem;
 }
 
+/* 讀取中轉圈（數字區塊、紀錄按鈕） */
+.spinner {
+  display: inline-block;
+  width: 1.15em;
+  height: 1.15em;
+  border: 2px solid rgb(232 165 152 / 0.45);
+  border-top-color: #c45c6a;
+  border-radius: 50%;
+  animation: spinner-rotate 0.65s linear infinite;
+  vertical-align: middle;
+  box-sizing: border-box;
+}
+
+@keyframes spinner-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+    border-color: rgb(232 165 152 / 0.55);
+    border-top-color: #c45c6a;
+    opacity: 0.85;
+  }
+}
+
+.stat-value.is-loading {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.65em;
+  min-width: 1.65em;
+}
+
+.count-display.is-loading {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3rem;
+  min-height: 2.5rem;
+}
+
+.count-display.is-loading .spinner {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+.btn-save-count {
+  position: relative;
+  min-width: 5.25rem;
+  overflow: hidden;
+}
+
+.btn-save-count.is-loading .btn-label {
+  visibility: hidden;
+}
+
+.btn-save-count .btn-spinner {
+  position: absolute;
+  inset: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: auto;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  color: #fffefc;
+}
+
+/* 否則 .btn-spinner 的 display 會蓋過 [hidden] */
+.btn-save-count .btn-spinner[hidden] {
+  display: none !important;
+}
+
+.btn-save-count .btn-spinner:not([hidden]) {
+  display: flex;
+}
+
+.btn-spinner-svg {
+  display: block;
+}
+
+.btn-save-count .btn-spinner-track {
+  stroke: rgb(255 254 252 / 0.28);
+}
+
+.btn-save-count .btn-spinner-arc {
+  stroke: currentColor;
+  stroke-dasharray: 10 47;
+  stroke-dashoffset: 0;
+}
+
+.btn-save-count .btn-spinner:not([hidden]) .btn-spinner-arc {
+  animation: btn-spinner-dash 0.75s linear infinite;
+}
+
+@keyframes btn-spinner-dash {
+  to {
+    stroke-dashoffset: -57;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-save-count .btn-spinner:not([hidden]) .btn-spinner-arc {
+    animation: none;
+    stroke-dasharray: 14 43;
+    opacity: 0.95;
+  }
+}
+
 .stats-banner {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -301,6 +413,11 @@ select:focus {
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.btn-save-count.is-loading:disabled {
+  opacity: 1;
+  cursor: wait;
 }
 
 .btn-ghost {

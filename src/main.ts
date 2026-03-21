@@ -13,6 +13,31 @@ registerSW({ immediate: true });
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
+function spinnerEl(ariaLabel: string): HTMLElement {
+  const s = el(`<span class="spinner" role="status"></span>`) as HTMLElement;
+  s.setAttribute("aria-label", ariaLabel);
+  return s;
+}
+
+/** 數字區塊讀取中：顯示轉圈，結束後請呼叫 `slotSetLoading(el, false)` 再寫入文字 */
+function slotSetLoading(target: HTMLElement | null, loading: boolean, ariaLabel = "讀取中") {
+  if (!target) return;
+  if (loading) {
+    target.classList.add("is-loading");
+    target.replaceChildren(spinnerEl(ariaLabel));
+  } else {
+    target.classList.remove("is-loading");
+  }
+}
+
+function setSaveButtonLoading(btn: HTMLButtonElement | null, loading: boolean) {
+  if (!btn) return;
+  btn.classList.toggle("is-loading", loading);
+  btn.disabled = loading;
+  btn.setAttribute("aria-busy", loading ? "true" : "false");
+  btn.querySelector(".btn-spinner")?.toggleAttribute("hidden", !loading);
+}
+
 type ListData = { sheets: string[] };
 /** 與 getTotals 相同欄位，另含名單與可選的今日次數（一次 bootstrap 載入） */
 type BootstrapSheetData = {
@@ -43,10 +68,7 @@ function clearError(card: HTMLElement) {
   card.querySelectorAll(".msg-error").forEach((n) => n.remove());
 }
 
-async function run<T>(
-  card: HTMLElement,
-  fn: () => Promise<ApiResponse<T>>
-): Promise<T | null> {
+async function run<T>(card: HTMLElement, fn: () => Promise<ApiResponse<T>>): Promise<T | null> {
   clearError(card);
   const r = await fn();
   if (!r.ok) {
@@ -74,10 +96,12 @@ function resetGoalProgressUI() {
 
 /** 將總計／進度條寫入頁首（不依賴 API） */
 function applyTotalsUI(data: TotalsData) {
-  const projEl = document.querySelector("#stat-project-total");
-  const mineEl = document.querySelector("#stat-my-total");
+  const projEl = document.querySelector("#stat-project-total") as HTMLElement | null;
+  const mineEl = document.querySelector("#stat-my-total") as HTMLElement | null;
   if (!projEl || !mineEl) return;
   const p = getParticipant();
+  slotSetLoading(projEl, false);
+  slotSetLoading(mineEl, false);
   projEl.textContent = formatInt(data.projectTotal);
   mineEl.textContent = p ? formatInt(data.participantTotal) : "—";
   const goal = typeof data.goal === "number" && data.goal > 0 ? data.goal : 2_000_000;
@@ -88,9 +112,12 @@ function applyTotalsUI(data: TotalsData) {
 function applyTodayCountUI(count: number) {
   const card = document.querySelector("#card-count") as HTMLElement | null;
   if (!card) return;
-  const display = card.querySelector("#count-val");
+  const display = card.querySelector("#count-val") as HTMLElement | null;
   const input = card.querySelector<HTMLInputElement>("#count-input");
-  if (display) display.textContent = String(count);
+  if (display) {
+    slotSetLoading(display, false);
+    display.textContent = String(count);
+  }
   if (input) input.value = String(count);
   clearError(card);
 }
@@ -117,23 +144,32 @@ function updateGoalProgressUI(current: number, goal: number) {
 async function refreshTotals() {
   const sheet = getSelectedSheet();
   const p = getParticipant();
-  const projEl = document.querySelector("#stat-project-total");
-  const mineEl = document.querySelector("#stat-my-total");
+  const projEl = document.querySelector("#stat-project-total") as HTMLElement | null;
+  const mineEl = document.querySelector("#stat-my-total") as HTMLElement | null;
   if (!projEl || !mineEl) return;
   if (!sheet) {
+    slotSetLoading(projEl, false);
+    slotSetLoading(mineEl, false);
     projEl.textContent = "—";
     mineEl.textContent = "—";
     resetGoalProgressUI();
     return;
   }
-  projEl.textContent = "…";
-  mineEl.textContent = p ? "…" : "—";
+  slotSetLoading(projEl, true);
+  if (p) {
+    slotSetLoading(mineEl, true);
+  } else {
+    slotSetLoading(mineEl, false);
+    mineEl.textContent = "—";
+  }
   const r = await callApi<TotalsData>({
     action: "getTotals",
     sheetName: sheet,
     participantName: p || "",
   });
   if (!r.ok || !r.data) {
+    slotSetLoading(projEl, false);
+    slotSetLoading(mineEl, false);
     projEl.textContent = "?";
     mineEl.textContent = p ? "?" : "—";
     resetGoalProgressUI();
@@ -224,37 +260,48 @@ async function onProjectChanged(_projectCard: HTMLElement) {
 async function loadProjects(card: HTMLElement) {
   const select = card.querySelector<HTMLSelectElement>("#project-select");
   if (!select) return;
-  select.disabled = true;
-  const data = await run<ListData>(card, () =>
-    callApi<ListData>({ action: "listProjects" })
-  );
-  select.disabled = false;
-  if (!data) return;
-  const sessionProject = select.value;
-  select.innerHTML = "";
-  if (data.sheets.length === 0) {
-    select.appendChild(new Option("（尚無分頁，請先到線上表格加一個新分頁）", ""));
+  const projEl = document.querySelector("#stat-project-total") as HTMLElement | null;
+  const mineEl = document.querySelector("#stat-my-total") as HTMLElement | null;
+  slotSetLoading(projEl, true);
+  slotSetLoading(mineEl, true);
+  try {
+    select.disabled = true;
+    const data = await run<ListData>(card, () => callApi<ListData>({ action: "listProjects" }));
+    if (!data) {
+      slotSetLoading(projEl, false);
+      slotSetLoading(mineEl, false);
+      projEl && (projEl.textContent = "—");
+      mineEl && (mineEl.textContent = "—");
+      return;
+    }
+    const sessionProject = select.value;
+    select.innerHTML = "";
+    if (data.sheets.length === 0) {
+      select.appendChild(new Option("（尚無分頁，請先到線上表格加一個新分頁）", ""));
+      const pcard = document.querySelector("#card-participant") as HTMLElement | null;
+      if (pcard) await resetParticipantSelect(pcard);
+      await refreshTotalsAndToday();
+      return;
+    }
+    for (const s of data.sheets) {
+      select.appendChild(new Option(s, s));
+    }
+    const remembered = getStoredSheet();
+    let picked = "";
+    if (remembered && data.sheets.includes(remembered)) picked = remembered;
+    else if (sessionProject && data.sheets.includes(sessionProject)) picked = sessionProject;
+    else if (data.sheets.length > 0) picked = data.sheets[0];
+    if (picked) {
+      select.value = picked;
+      setStoredSheet(picked);
+    }
     const pcard = document.querySelector("#card-participant") as HTMLElement | null;
-    if (pcard) await resetParticipantSelect(pcard);
-    await refreshTotalsAndToday();
-    return;
-  }
-  for (const s of data.sheets) {
-    select.appendChild(new Option(s, s));
-  }
-  const remembered = getStoredSheet();
-  let picked = "";
-  if (remembered && data.sheets.includes(remembered)) picked = remembered;
-  else if (sessionProject && data.sheets.includes(sessionProject)) picked = sessionProject;
-  else if (data.sheets.length > 0) picked = data.sheets[0];
-  if (picked) {
-    select.value = picked;
-    setStoredSheet(picked);
-  }
-  const pcard = document.querySelector("#card-participant") as HTMLElement | null;
-  if (pcard) await loadParticipants(pcard);
-  else {
-    await refreshTotalsAndToday();
+    if (pcard) await loadParticipants(pcard);
+    else {
+      await refreshTotalsAndToday();
+    }
+  } finally {
+    select.disabled = false;
   }
 }
 
@@ -301,8 +348,8 @@ async function loadParticipants(card: HTMLElement) {
     return;
   }
   const countCard = document.querySelector("#card-count") as HTMLElement | null;
-  const countDisplay = countCard?.querySelector("#count-val");
-  if (countDisplay) countDisplay.textContent = "…";
+  const countDisplay = countCard?.querySelector("#count-val") as HTMLElement | null;
+  slotSetLoading(countDisplay, true);
 
   select.disabled = true;
   const stored = getStoredParticipantForSheet(sheet);
@@ -315,7 +362,10 @@ async function loadParticipants(card: HTMLElement) {
   );
   select.disabled = false;
   if (!data) {
-    if (countDisplay) countDisplay.textContent = "—";
+    if (countDisplay) {
+      slotSetLoading(countDisplay, false);
+      countDisplay.textContent = "—";
+    }
     return;
   }
 
@@ -401,7 +451,15 @@ function buildCountCard() {
     <label for="count-input">直接修改數字</label>
     <div class="row">
       <input type="number" id="count-input" min="0" step="1" inputmode="numeric" />
-      <button type="button" class="btn" id="save-count">紀錄</button>
+      <button type="button" class="btn btn-save-count" id="save-count" aria-busy="false">
+        <span class="btn-label">紀錄</span>
+        <span class="btn-spinner" hidden aria-hidden="true">
+          <svg class="btn-spinner-svg" width="20" height="20" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+            <circle class="btn-spinner-track" cx="12" cy="12" r="9" fill="none" stroke-width="2.5" />
+            <circle class="btn-spinner-arc" cx="12" cy="12" r="9" fill="none" stroke-width="2.5" stroke-linecap="round" />
+          </svg>
+        </span>
+      </button>
     </div>
     <p class="count-hint">加、減或改數字後，按「紀錄」才會存到線上。</p>
   `;
@@ -418,16 +476,19 @@ async function loadTodayCount() {
   if (!card) return;
   const sheet = getSelectedSheet();
   const participant = getParticipant();
-  const display = card.querySelector("#count-val");
+  const display = card.querySelector("#count-val") as HTMLElement | null;
   const input = card.querySelector<HTMLInputElement>("#count-input");
   if (!sheet || !participant) {
-    if (display) display.textContent = "—";
+    if (display) {
+      slotSetLoading(display, false);
+      display.textContent = "—";
+    }
     if (input) input.value = "";
     clearError(card);
     return;
   }
 
-  if (display) display.textContent = "…";
+  slotSetLoading(display, true);
   const data = await run<CountData>(card, () =>
     callApi<CountData>({
       action: "getTodayCount",
@@ -436,18 +497,25 @@ async function loadTodayCount() {
     })
   );
   if (!data) {
-    if (display) display.textContent = "—";
+    if (display) {
+      slotSetLoading(display, false);
+      display.textContent = "—";
+    }
     return;
   }
-  if (display) display.textContent = String(data.count);
+  if (display) {
+    slotSetLoading(display, false);
+    display.textContent = String(data.count);
+  }
   if (input) input.value = String(data.count);
 }
 
 function parseLocalCount(card: HTMLElement): number | null {
   const input = card.querySelector<HTMLInputElement>("#count-input");
   const display = card.querySelector("#count-val");
+  if (display?.classList.contains("is-loading")) return null;
   const d = display?.textContent?.trim() ?? "";
-  if (d === "—" || d === "…" || d === "") return null;
+  if (d === "—" || d === "") return null;
   const fromInput = input?.value.trim() ?? "";
   if (fromInput !== "") {
     const v = Math.floor(Number(fromInput));
@@ -458,9 +526,12 @@ function parseLocalCount(card: HTMLElement): number | null {
 }
 
 function setLocalCountDisplay(card: HTMLElement, value: number) {
-  const display = card.querySelector("#count-val");
+  const display = card.querySelector("#count-val") as HTMLElement | null;
   const input = card.querySelector<HTMLInputElement>("#count-input");
-  if (display) display.textContent = String(value);
+  if (display) {
+    slotSetLoading(display, false);
+    display.textContent = String(value);
+  }
   if (input) input.value = String(value);
 }
 
@@ -493,21 +564,28 @@ async function commitCountToSheet(card: HTMLElement) {
     showError(card, "請輸入有效數字，或等待載入完成。");
     return;
   }
-  const data = await run<CountData>(card, () =>
-    callApi<CountData>({
-      action: "setCount",
-      sheetName: sheet,
-      participantName: participant,
-      value,
-    })
-  );
-  if (!data) return;
-  setLocalCountDisplay(card, data.count);
-  const ok = el(`<div class="msg msg-ok">已幫你存好了。</div>`);
-  card.querySelector(".msg-ok")?.remove();
-  card.appendChild(ok);
-  setTimeout(() => ok.remove(), 2500);
-  await refreshTotals();
+  const saveBtn = card.querySelector<HTMLButtonElement>("#save-count");
+  setSaveButtonLoading(saveBtn, true);
+  try {
+    const data = await run<CountData>(card, () =>
+      callApi<CountData>({
+        action: "setCount",
+        sheetName: sheet,
+        participantName: participant,
+        value,
+      })
+    );
+    if (!data) return;
+    setLocalCountDisplay(card, data.count);
+    const ok = el(`<div class="msg msg-ok">已幫你存好了。</div>`);
+    card.querySelector(".msg-ok")?.remove();
+    card.appendChild(ok);
+    setTimeout(() => ok.remove(), 2500);
+    setSaveButtonLoading(saveBtn, false);
+    await refreshTotals();
+  } finally {
+    setSaveButtonLoading(saveBtn, false);
+  }
 }
 
 function buildConfigHint() {

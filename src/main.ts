@@ -445,9 +445,9 @@ function buildCountCard() {
     <p class="step-label">③ 今日次數（以台北時間為準）</p>
     <div class="stepper" id="stepper-adjust">
       <div class="stepper-row">
-        <button type="button" class="btn stepper-btn" data-delta="-100" aria-label="減一百">−100</button>
-        <button type="button" class="btn stepper-btn" data-delta="-10" aria-label="減十">−10</button>
         <button type="button" class="btn stepper-btn" data-delta="-1" aria-label="減一">−1</button>
+        <button type="button" class="btn stepper-btn" data-delta="-10" aria-label="減十">−10</button>
+        <button type="button" class="btn stepper-btn" data-delta="-100" aria-label="減一百">−100</button>
       </div>
       <span class="count-display" id="count-val">—</span>
       <div class="stepper-row">

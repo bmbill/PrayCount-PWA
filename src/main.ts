@@ -443,10 +443,18 @@ function buildCountCard() {
   const card = el(`<section class="card" id="card-count"></section>`) as HTMLElement;
   card.innerHTML = `
     <p class="step-label">③ 今日次數（以台北時間為準）</p>
-    <div class="stepper">
-      <button type="button" class="btn" id="minus" aria-label="減一">−</button>
+    <div class="stepper" id="stepper-adjust">
+      <div class="stepper-row">
+        <button type="button" class="btn stepper-btn" data-delta="-100" aria-label="減一百">−100</button>
+        <button type="button" class="btn stepper-btn" data-delta="-10" aria-label="減十">−10</button>
+        <button type="button" class="btn stepper-btn" data-delta="-1" aria-label="減一">−1</button>
+      </div>
       <span class="count-display" id="count-val">—</span>
-      <button type="button" class="btn" id="plus" aria-label="加一">+</button>
+      <div class="stepper-row">
+        <button type="button" class="btn stepper-btn" data-delta="1" aria-label="加一">+1</button>
+        <button type="button" class="btn stepper-btn" data-delta="10" aria-label="加十">+10</button>
+        <button type="button" class="btn stepper-btn" data-delta="100" aria-label="加一百">+100</button>
+      </div>
     </div>
     <label for="count-input">直接修改數字</label>
     <div class="row">
@@ -461,11 +469,18 @@ function buildCountCard() {
         </span>
       </button>
     </div>
-    <p class="count-hint">加、減或改數字後，按「紀錄」才會存到線上。</p>
+    <p class="count-hint">按 ±1／±10／±100 或改數字後，按「紀錄」才會存到線上。</p>
   `;
 
-  card.querySelector("#plus")?.addEventListener("click", () => adjustLocal(card, 1));
-  card.querySelector("#minus")?.addEventListener("click", () => adjustLocal(card, -1));
+  const stepper = card.querySelector("#stepper-adjust");
+  stepper?.addEventListener("click", (e) => {
+    const t = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-delta]");
+    if (!t || !stepper.contains(t)) return;
+    const raw = t.dataset.delta;
+    const d = raw !== undefined ? Number(raw) : NaN;
+    if (!Number.isFinite(d)) return;
+    adjustLocal(card, d);
+  });
   card.querySelector("#save-count")?.addEventListener("click", () => commitCountToSheet(card));
 
   return card;

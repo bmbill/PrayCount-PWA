@@ -4,6 +4,7 @@ import {
   callApi,
   getStoredParticipantForSheet,
   getStoredSheet,
+  persistSelectionForNextVisit,
   setStoredParticipantForSheet,
   setStoredSheet,
   type ApiResponse,
@@ -592,6 +593,7 @@ async function commitCountToSheet(card: HTMLElement) {
     );
     if (!data) return;
     setLocalCountDisplay(card, data.count);
+    persistSelectionForNextVisit(sheet, participant);
     const ok = el(`<div class="msg msg-ok">已幫你存好了。</div>`);
     card.querySelector(".msg-ok")?.remove();
     card.appendChild(ok);

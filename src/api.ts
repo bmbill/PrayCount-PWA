@@ -3,15 +3,37 @@ const LS_SHEET = "mantra_count_sheet_name";
 /** 各分頁上次選的使用者：{ [sheetName]: participantName } */
 const LS_PARTICIPANT_BY_SHEET = "mantra_count_participant_by_sheet";
 
+let migratedSessionPrefsOnce = false;
+
+/** 從舊版 sessionStorage 帶入一輪，避免升級後第一次開啟要重選 */
+function migrateSessionPrefsOnce() {
+  if (migratedSessionPrefsOnce) return;
+  try {
+    for (const key of [LS_SHEET, LS_NAME, LS_PARTICIPANT_BY_SHEET] as const) {
+      const v = sessionStorage.getItem(key);
+      if (v == null || v === "") continue;
+      if (localStorage.getItem(key) == null) localStorage.setItem(key, v);
+    }
+    migratedSessionPrefsOnce = true;
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
- * 介面偏好（上次選的專案／使用者）只存在瀏覽器，**不會**寫入 Google 試算表。
- * 使用 sessionStorage：同一分頁開著時會記住；**關閉分頁後通常會清除**（與 localStorage 不同）。
+ * 介面偏好（專案／使用者）存在本機 **localStorage**，關閉瀏覽器後仍保留（同一網址／網域）。
+ * 不會取代試算表資料；成功按「紀錄」時也會再次寫入（見 `persistSelectionForNextVisit`）。
  */
 function prefStorage(): Storage {
   try {
-    return sessionStorage;
-  } catch {
+    migrateSessionPrefsOnce();
     return localStorage;
+  } catch {
+    try {
+      return sessionStorage;
+    } catch {
+      return localStorage;
+    }
   }
 }
 
@@ -145,4 +167,15 @@ export function getStoredSheet(): string {
 
 export function setStoredSheet(sheetName: string): void {
   prefStorage().setItem(LS_SHEET, sheetName.trim());
+}
+
+/**
+ * 成功將今日次數寫入試算表後呼叫：把目前專案／使用者寫入本機，下次開啟同一裝置瀏覽器會自動載入選項。
+ */
+export function persistSelectionForNextVisit(sheetName: string, participantName: string): void {
+  const sh = sheetName.trim();
+  const n = participantName.trim();
+  if (!sh || !n) return;
+  setStoredSheet(sh);
+  setStoredParticipantForSheet(sh, n);
 }
